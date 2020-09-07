@@ -18,6 +18,13 @@ export interface TrackerInfo {
   longitude: number
 }
 
+export interface TrackerPosition {
+  battery: number
+  online: boolean
+  latitude: number
+  longitude: number
+}
+
 /**
  * Platform Accessory
  * An instance of this class is created for each accessory your platform registers

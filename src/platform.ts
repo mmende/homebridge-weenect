@@ -10,7 +10,11 @@ import {
 import fetch from 'node-fetch'
 
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings'
-import { TrackerPlatformAccessory, TrackerInfo } from './platformAccessory'
+import {
+  TrackerPlatformAccessory,
+  TrackerInfo,
+  // TrackerPosition,
+} from './platformAccessory'
 
 interface PlatformConfig extends BasePlatformConfig {
   username: string
@@ -51,16 +55,14 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
     this.api.on('didFinishLaunching', async () => {
       log.debug('Executed didFinishLaunching callback')
 
-      // Fetch all trackers initially
-      await this.updateTrackerInfos()
+      // discover all trackers
+      await this.discoverDevices()
+
       // Update every n minutes
       const { updateInterval = 2 } = this.config
       setInterval(() => {
         this.updateTrackerInfos()
       }, updateInterval * 60000)
-
-      // run the method to discover / register your devices as accessories
-      await this.discoverDevices()
     })
   }
 
@@ -183,6 +185,28 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
       firmware,
     })) as TrackerInfo[]
   }
+
+  /*
+  async getTrackerPosition(id: string) {
+    const token = await this.login()
+    const res = await fetch(
+      `https://apiv4.weenect.com/v4/mytracker/${id}/position`,
+      {
+        headers: {
+          authorization: `JWT ${token}`,
+        },
+      },
+    )
+    const result = await res.json()
+    const { battery, latitude, longitude, is_online: online } = result[0]
+    return {
+      battery,
+      online,
+      latitude,
+      longitude,
+    } as TrackerPosition
+  }
+  */
 
   async login() {
     const now = new Date().getTime()
