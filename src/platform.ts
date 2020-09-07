@@ -34,6 +34,9 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
 
   public readonly trackers: TrackerPlatformAccessory[] = []
 
+  private authToken: string | null = null
+  private authTokenValidUntil: Date | null = null
+
   constructor(
     public readonly log: Logger,
     public readonly config: PlatformConfig,
@@ -182,19 +185,36 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
   }
 
   async login() {
-    const { username, password } = this.config
-    const res = await fetch('https://apiv4.weenect.com/v4/user/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username,
-        password,
-      }),
-    })
-    const result = await res.json()
-    const { access_token: token /*, expires_in, refresh_token: */ } = result
-    return token as string
+    const now = new Date().getTime()
+    const { authToken, authTokenValidUntil } = this
+    // Check if the token has to be renewed
+    if (
+      !authToken ||
+      !authTokenValidUntil ||
+      authTokenValidUntil.getTime() < now
+    ) {
+      const { username, password } = this.config
+      const res = await fetch('https://apiv4.weenect.com/v4/user/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      })
+      const result = await res.json()
+      const { access_token: token, expires_in /*, refresh_token: */ } = result
+      this.authToken = token as string
+      const validUntil = new Date()
+      validUntil.setSeconds(validUntil.getSeconds() + expires_in)
+      this.authTokenValidUntil = validUntil
+      this.log.debug(
+        `Got new access token (valid until: ${this.authTokenValidUntil.toLocaleString()})`,
+      )
+      return this.authToken
+    }
+    return authToken
   }
 }
