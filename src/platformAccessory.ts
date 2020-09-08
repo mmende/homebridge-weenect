@@ -36,20 +36,17 @@ export class TrackerPlatformAccessory {
   constructor(
     private readonly platform: WeenectHomebridgePlatform,
     private readonly accessory: PlatformAccessory,
-    public info: TrackerInfo,
   ) {
+    const { info } = this.accessory.context as { info: TrackerInfo }
     // set accessory information
     this.accessory
       .getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Weenect')
-      .setCharacteristic(this.platform.Characteristic.Model, this.info.type)
-      .setCharacteristic(
-        this.platform.Characteristic.SerialNumber,
-        this.info.imei,
-      )
+      .setCharacteristic(this.platform.Characteristic.Model, info.type)
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, info.imei)
       .setCharacteristic(
         this.platform.Characteristic.FirmwareRevision,
-        this.info.firmware,
+        info.firmware,
       )
 
     // get the Battery service if it exists, otherwise create a new Battery service
@@ -71,10 +68,7 @@ export class TrackerPlatformAccessory {
 
     // set the service name, this is what is displayed as the default name on the Home app
     // in this example we are using the name we stored in the `accessory.context` in the `discoverDevices` method.
-    this.service.setCharacteristic(
-      this.platform.Characteristic.Name,
-      this.info.name,
-    )
+    this.service.setCharacteristic(this.platform.Characteristic.Name, info.name)
 
     // register handlers for the On/Off Characteristic
     this.service
@@ -83,7 +77,7 @@ export class TrackerPlatformAccessory {
   }
 
   getBattery(callback: CharacteristicGetCallback) {
-    const { battery } = this.info
+    const { battery } = this.accessory.context.info as TrackerInfo
     this.platform.log.debug('Get Characteristic Battery ->', battery)
 
     callback(null, battery)
@@ -94,7 +88,7 @@ export class TrackerPlatformAccessory {
   }
 
   getStatusLowBattery(callback: CharacteristicGetCallback) {
-    const { battery } = this.info
+    const { battery } = this.accessory.context.info as TrackerInfo
     const { lowBatteryThreshold = 30 } = this.platform.config
     const {
       BATTERY_LEVEL_LOW,
@@ -112,7 +106,7 @@ export class TrackerPlatformAccessory {
   }
 
   getOn(callback: CharacteristicGetCallback) {
-    const { online } = this.info
+    const { online } = this.accessory.context.info as TrackerInfo
     this.platform.log.debug('Get Characteristic On ->', online)
 
     callback(null, online)

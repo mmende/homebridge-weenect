@@ -13,7 +13,7 @@ import { PLATFORM_NAME, PLUGIN_NAME } from './settings'
 import {
   TrackerPlatformAccessory,
   TrackerInfo,
-  // TrackerPosition,
+  TrackerPosition,
 } from './platformAccessory'
 
 interface PlatformConfig extends BasePlatformConfig {
@@ -36,8 +36,6 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
   // this is used to track restored cached accessories
   public readonly accessories: PlatformAccessory[] = []
 
-  public readonly trackers: TrackerPlatformAccessory[] = []
-
   private authToken: string | null = null
   private authTokenValidUntil: Date | null = null
 
@@ -46,7 +44,7 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
     public readonly config: PlatformConfig,
     public readonly api: API,
   ) {
-    this.log.debug('Finished initializing platform:', this.config.name)
+    this.log.debug('Finished initializing platform:', PLATFORM_NAME)
 
     // When this event is fired it means Homebridge has restored all cached accessories from disk.
     // Dynamic Platform plugins should only register new accessories after this event was fired,
@@ -55,8 +53,10 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
     this.api.on('didFinishLaunching', async () => {
       log.debug('Executed didFinishLaunching callback')
 
-      // discover all trackers
+      // discover all trackers initially and restore
+      // cached accessories with new data
       await this.discoverDevices()
+      // this.updateTrackerInfos()
 
       // Update every n minutes
       const { updateInterval = 2 } = this.config
@@ -110,14 +110,12 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
         )
 
         // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. eg.:
-        // existingAccessory.context.device = device;
-        // this.api.updatePlatformAccessories([existingAccessory]);
+        existingAccessory.context.info = info
+        this.api.updatePlatformAccessories([existingAccessory])
 
         // create the accessory handler for the restored accessory
         // this is imported from `platformAccessory.ts`
-        this.trackers.push(
-          new TrackerPlatformAccessory(this, existingAccessory, info),
-        )
+        new TrackerPlatformAccessory(this, existingAccessory)
       } else {
         // the accessory does not yet exist, so we need to create it
         this.log.info('Adding new accessory:', info.name)
@@ -125,13 +123,13 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
         // create a new accessory
         const accessory = new this.api.platformAccessory(info.name, uuid)
 
-        // store a copy of the device object in the `accessory.context`
+        // store a copy of the info object in the `accessory.context`
         // the `context` property can be used to store any data about the accessory you may need
-        accessory.context.device = info
+        accessory.context.info = info
 
         // create the accessory handler for the newly create accessory
         // this is imported from `platformAccessory.ts`
-        this.trackers.push(new TrackerPlatformAccessory(this, accessory, info))
+        new TrackerPlatformAccessory(this, accessory)
 
         // link the accessory to your platform
         this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
@@ -144,20 +142,48 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
   async updateTrackerInfos() {
     this.log.debug('Updating trackers...')
     try {
+      // Get a list of all trackers infos
       const infos = await this.getTrackerInfos()
+      // For each tracker info...
       // this.log.debug('updates', infos, this.trackers);
       for (const info of infos) {
-        const tracker = this.trackers.find(
-          (tracker) => tracker.info.id === info.id,
+        // ...check if the tracker was already registered
+        const uuid = this.api.hap.uuid.generate(info.id)
+        const existingAccessory = this.accessories.find(
+          (accessory) => accessory.UUID === uuid,
         )
-        if (tracker) {
-          this.log.debug(`Updating tracker "${info.name}":`, info)
-          tracker.info = info
+        if (!existingAccessory) {
+          this.log.debug(`Adding newly found tracker "${info.name}"`)
+          // register the newly found tracker
+          const accessory = new this.api.platformAccessory(info.name, uuid)
+          // store a copy of the info object in the `accessory.context`
+          // the `context` property can be used to store any data about the accessory you may need
+          accessory.context.info = info
+          // create the accessory handler for the newly create accessory
+          // this is imported from `platformAccessory.ts`
+          new TrackerPlatformAccessory(this, accessory)
+          // link the accessory to the platform
+          this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+            accessory,
+          ])
         } else {
-          this.log.debug(`Did not find tracker "${info.name}"...`)
+          this.log.debug(`Updating tracker "${info.name}"`)
+          existingAccessory.context.info = info
+          this.api.updatePlatformAccessories([existingAccessory])
         }
-        // @todo: add new trackers / remove unavailable trackers
       }
+      // Go over each accessory and check if the tracker is still listed
+      // otherwise unregister it
+      this.accessories.forEach((accessory) => {
+        const { id, name } = accessory.context.info
+        const stillExists = !!infos.find((info) => info.id === id)
+        if (!stillExists) {
+          this.log.debug(`Removing tracker "${name}"`)
+          this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+            accessory,
+          ])
+        }
+      })
     } catch (err) {
       this.log.error('Could not update trackers', err)
     }
@@ -186,7 +212,13 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
     })) as TrackerInfo[]
   }
 
-  /*
+  /**
+   * Not used at the moment because it would
+   * require a request for each tracker in contrary to
+   * getTrackerInfos (which on the other hand returns much more unused data)
+   * ...furthermore getTrackerInfos will probably also reflect removed trackers directly
+   * @param id
+   */
   async getTrackerPosition(id: string) {
     const token = await this.login()
     const res = await fetch(
@@ -206,7 +238,6 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
       longitude,
     } as TrackerPosition
   }
-  */
 
   async login() {
     const now = new Date().getTime()
