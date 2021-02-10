@@ -1,6 +1,6 @@
 import { API } from 'homebridge'
 
-import { PLATFORM_NAME } from './settings'
+import { PLUGIN_NAME, PLATFORM_NAME } from './settings'
 import { WeenectHomebridgePlatform } from './platform'
 
 /**
@@ -8,5 +8,5 @@ import { WeenectHomebridgePlatform } from './platform'
  */
 export = (api: API) => {
   // @ts-ignore
-  api.registerPlatform(PLATFORM_NAME, WeenectHomebridgePlatform)
+  api.registerPlatform(PLUGIN_NAME, PLATFORM_NAME, WeenectHomebridgePlatform)
 }
