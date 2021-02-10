@@ -230,10 +230,11 @@ export class WeenectHomebridgePlatform implements DynamicPlatformPlugin {
       },
     )
     const result = await res.json()
-    const { battery, latitude, longitude, is_online: online } = result[0]
+    const { battery, latitude, longitude, type /* , is_online: online */ } = result[0]
+    const turnedOff = typeof type === 'string' && type.toLocaleLowerCase().indexOf('off') >= 0
     return {
       battery,
-      online,
+      online: !turnedOff,
       latitude,
       longitude,
     } as TrackerPosition
