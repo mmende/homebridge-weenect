@@ -1,5 +1,4 @@
 {
-  "private": true,
   "displayName": "Weenect",
   "name": "homebridge-weenect",
   "version": "1.0.1-beta.0",
